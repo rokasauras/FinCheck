@@ -39,7 +39,7 @@ def main():
         sys.exit(1)
 
     # Process the PDF file
-    pdf_handler = PDFHandler(pdf_path=pdf_path, poppler_path=None)
+    pdf_handler = PDFHandler(pdf_path=pdf_path, poppler_path=None)  
     pdf_handler.extract_metadata()
     pdf_handler.extract_text()
     pdf_handler.convert_to_images(max_pages=20)
@@ -80,5 +80,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
