@@ -86,11 +86,13 @@ class StatementVerifier:
                 print(f"Error parsing JSON string: {e}")
                 return {}
 
-    def compare_text(self, similarity_threshold=0.90): # Compare text from AI vs PDF
+    
+    def compare_text(self, similarity_threshold=0.90): 
         """
         Compares the 'page_text' from AI vs. PDF output based on WORD similarity.
         If similarity is below threshold, a unified diff is printed (word-by-word).
         """
+        
         print("\n=== Comparing AI Vision Output with PDF Extracted Text ===\n")
 
         total_pages = max(len(self.pages_ai["pages"]), len(self.pages_pdf["pages"]))
@@ -137,7 +139,7 @@ class StatementVerifier:
         matches = re.findall(pattern, text)
         return [match.lstrip('+-') for match in matches]
     
-    def compare_numbers(self):
+    def compare_numbers(self): # Compare numeric values between AI and PDF
         """
         Compare numeric values from AI output vs. PDF output for each page, 
         ignoring the order of the numbers. They must match in count and value,
@@ -146,7 +148,7 @@ class StatementVerifier:
         print("\n=== Comparing Numeric Values Between AI and PDF ===\n")
         total_pages = max(len(self.pages_ai["pages"]), len(self.pages_pdf["pages"]))
 
-        for page_num in range(1, total_pages + 1):
+        for page_num in range(1, total_pages + 1): # Loop through all pages
             # Find the page dictionaries
             ai_page = next((p for p in self.pages_ai["pages"] if p.get("page_number") == page_num), {})
             pdf_page = next((p for p in self.pages_pdf["pages"] if p.get("page_number") == page_num), {})
@@ -176,8 +178,6 @@ class StatementVerifier:
                 print("Sorted PDF: ", sorted(pdf_numbers))
 
             print()  # Blank line for clarity
-
-    
 
 
     
