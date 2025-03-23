@@ -23,25 +23,33 @@ class OpenAIHelper:
 
     def analyse_bank_statements(self, images):
         """
-        Analyze images of potential bank statements and extract structured data.
-        Returns JSON-formatted response with page analysis.
+        Analyse a set of images to determine if they are bank statements,
+        and extract key information if they are.
         """
         # System message content for the AI
         system_content = (
-            "You are a data extraction AI. "
-            "Your task is to analyse each page image to see if it's a business bank statement or something else. "
-            "For each page: "
-            " 1) Determine 'classification' as 'bank_statement' or 'other'. "
-            " 2) If it's a bank_statement, extract as many of these fields as possible; if unknown, use 'unknown': "
-            "    - business_name "
-            "    - business_address "
-            "    - bank_name "
-            "    - opening_balance "
-            "    - closing_balance "
-            "    - transaction_count "
-            "    - page_text (the entire text you can read/infer from the page) "
-            "Produce an array of objects, one per page. "
-            "Use this JSON format exactly (no extra commentary): "
+            "You are a precise OCR data extraction AI. "
+            "We have multiple page images of a PDF. Produce a JSON object with a 'pages' array, "
+            "where each element corresponds to one page. For the FIRST page only, include the following fields: "
+            "  - \"classification\" : \"bank_statement\" or \"other\" "
+            "  - \"business_name\" : string or \"unknown\" "
+            "  - \"business_address\" : string or \"unknown\" "
+            "  - \"bank_name\" : string or \"unknown\" "
+            "On ALL pages (including the first page), include: "
+            "  - \"page_number\" : integer "
+            "  - \"opening_balance\" : float or \"unknown\" "
+            "  - \"closing_balance\" : float or \"unknown\" "
+            "  - \"transaction_count\" : int or \"unknown\" "
+            "  - \"transactions\" : an array of objects, each having "
+            "       { \"date\": \"YYYY-MM-DD or unknown\", \"amount\": \"+300\" or \"-200\" or \"unknown\" } "
+            "    If no transactions are found, use \"unknown\". "
+            "  - \"page_text\" : EVERY piece of visible text, including fine print, footnotes, headers, footers, marginal notes, disclaimers, watermarks, faint or faded text, and text at extreme edges or corners. Omit nothing. "
+            "Additionally, include at the END of the JSON object an \"ai_tampering_check\" object containing: "
+            "{ "
+            "  \"tampered\": true or false, "
+            "  \"explanation\": \"Clear explanation if tampering is suspected or 'No obvious tampering detected.'\" "
+            "}. "
+            "Use the exact JSON format below (no extra commentary): "
             "{ "
             "  \"pages\": [ "
             "    { "
@@ -53,11 +61,23 @@ class OpenAIHelper:
             "      \"opening_balance\": \"float or unknown\", "
             "      \"closing_balance\": \"float or unknown\", "
             "      \"transaction_count\": \"int or unknown\", "
+            "      \"transactions\": [ "
+            "          { "
+            "            \"date\": \"YYYY-MM-DD\" or \"unknown\", "
+            "            \"amount\": \"+300\" or \"-200\" or \"unknown\" "
+            "          } "
+            "       ] or \"unknown\", "
             "      \"page_text\": \"string or unknown\" "
             "    } "
-            "  ] "
+            "  ], "
+            "  \"ai_tampering_check\": { "
+            "      \"tampered\": true or false, "
+            "      \"explanation\": \"Clear explanation if tampering is suspected or 'No obvious tampering detected.'\" "
+            "  } "
             "}. "
-            "Return valid JSON only. Do not include extra text."
+            "If a page is NOT the first page, do NOT output \"classification\", \"business_name\", \"business_address\", "
+            "or \"bank_name\" for that page (leave them out entirely). "
+            "Return strictly valid JSON and nothing else."
         )
 
         # Prepare the messages for the AI
@@ -72,7 +92,7 @@ class OpenAIHelper:
             }
         ]
 
-        # Add images to the user content
+        # Add images to the user message content
         for img in images:
             try:
                 base64_image = self.encode_image(img)
@@ -82,16 +102,16 @@ class OpenAIHelper:
                         "url": f"data:image/png;base64,{base64_image}"
                     }
                 })
-            except Exception as e: #  Handle image encoding errors
+            except Exception as e:
                 print(f"Error encoding image: {e}")
                 continue
-
+        
         # Call the OpenAI API
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_tokens=2000,  # Increase if AI JSON response is too short
+                max_tokens=10000,  # Increased for JSON output
                 response_format={"type": "json_object"}  # Ensure JSON output
             )
             return response.choices[0].message.content

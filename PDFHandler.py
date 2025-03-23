@@ -1,6 +1,7 @@
 import pdf2image
 from PyPDF2 import PdfReader
 from pathlib import Path
+import json
 
 
 class PDFHandler:
@@ -9,7 +10,7 @@ class PDFHandler:
     and optionally converting pages to images.
     """
     # Add a constructor to initialise the PDFHandler
-    def __init__(self, pdf_path, poppler_path=None): 
+    def __init__(self, pdf_path, poppler_path=None):
         self.pdf_path = Path(pdf_path)
         self.poppler_path = poppler_path
         self.metadata = {}
@@ -40,25 +41,44 @@ class PDFHandler:
         """Extract text from PDF pages (if they are text-based, not images)."""
         try:
             reader = PdfReader(self.pdf_path)
-            all_text = []
-            for page in reader.pages:
-                page_text = page.extract_text() or ""
-                all_text.append(page_text)
-            self.text = "\n".join(all_text)
+            pages_list = []
 
-            # Print the first 1000 characters (or less if the document is shorter)
-            print("\n--- Extracted Text Preview (First 1000 characters) ---\n")
-            print(self.text[:1000])  # Slice the first 1000 characters
-            print("\n--- Extracted Text Preview End ---\n")
+            for i, page in enumerate(reader.pages, start=1):
+                page_text = page.extract_text() or ""
+                # Append a dict similar to the AI's JSON structure
+                pages_list.append({
+                    "page_number": i,
+                    "page_text": page_text
+                })
+
+            # Join all page texts into a single string
+            self.text = "\n".join([p["page_text"] for p in pages_list])
+            self.text_pages = pages_list  # Store individual page texts
+
+            # Print a JSON preview of the extracted text
+            # Limit to first 1000 characters per page for preview
+            preview_pages = []
+            for p in pages_list:
+                preview_text = p["page_text"][:1000]
+                preview_pages.append({
+                    "page_number": p["page_number"],
+                    "page_text": preview_text
+                })
+
+            preview_json = {"pages": preview_pages}
+            print("\n--- Extracted Text as JSON Preview (First 1000 chars per page) ---")
+            print(json.dumps(preview_json, indent=2))
+            print("--- End of Extracted Text Preview ---\n")
+
         except Exception as e:
             print(f"Error extracting text: {e}")
             self.text = ""
+            self.text_pages = []
 
-    # Add a method to convert the PDF to images
     def convert_to_images(self, max_pages=20):
         """Convert the PDF to images (for OCR or AI-based image analysis)."""
         try:
-            # If poppler_path is needed (Windows users), pass it explicitly
+            # Convert PDF pages to images
             self.images = pdf2image.convert_from_path(
                 self.pdf_path, 
                 poppler_path=self.poppler_path
