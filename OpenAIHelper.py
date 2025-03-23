@@ -28,7 +28,7 @@ class OpenAIHelper:
         """
         # System message content for the AI
         system_content = (
-            "You are a precise OCR data extraction AI. "
+            "You are a data extraction AI. "
             "We have multiple page images of a PDF. Produce a JSON object with a 'pages' array, "
             "where each element corresponds to one page. For the FIRST page only, include the following fields: "
             "  - \"classification\" : \"bank_statement\" or \"other\" "
@@ -43,12 +43,7 @@ class OpenAIHelper:
             "  - \"transactions\" : an array of objects, each having "
             "       { \"date\": \"YYYY-MM-DD or unknown\", \"amount\": \"+300\" or \"-200\" or \"unknown\" } "
             "    If no transactions are found, use \"unknown\". "
-            "  - \"page_text\" : EVERY piece of visible text, including fine print, footnotes, headers, footers, marginal notes, disclaimers, watermarks, faint or faded text, and text at extreme edges or corners. Omit nothing. "
-            "Additionally, include at the END of the JSON object an \"ai_tampering_check\" object containing: "
-            "{ "
-            "  \"tampered\": true or false, "
-            "  \"explanation\": \"Clear explanation if tampering is suspected or 'No obvious tampering detected.'\" "
-            "}. "
+            "  - \"page_text\" : the entire text you can read or infer from that page "
             "Use the exact JSON format below (no extra commentary): "
             "{ "
             "  \"pages\": [ "
@@ -69,11 +64,7 @@ class OpenAIHelper:
             "       ] or \"unknown\", "
             "      \"page_text\": \"string or unknown\" "
             "    } "
-            "  ], "
-            "  \"ai_tampering_check\": { "
-            "      \"tampered\": true or false, "
-            "      \"explanation\": \"Clear explanation if tampering is suspected or 'No obvious tampering detected.'\" "
-            "  } "
+            "  ] "
             "}. "
             "If a page is NOT the first page, do NOT output \"classification\", \"business_name\", \"business_address\", "
             "or \"bank_name\" for that page (leave them out entirely). "
@@ -105,7 +96,7 @@ class OpenAIHelper:
             except Exception as e:
                 print(f"Error encoding image: {e}")
                 continue
-        
+            
         # Call the OpenAI API
         try:
             response = self.client.chat.completions.create(
