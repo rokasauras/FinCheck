@@ -1,138 +1,100 @@
-from dotenv import load_dotenv
-import pdf2image
-import sys
-from pathlib import Path
-import os
 from openai import OpenAI
+import os
 import base64
 from io import BytesIO
-from PyPDF2 import PdfReader
-import tkinter as tk
-from tkinter import filedialog
 
-def encode_image(image):
-    """Convert a PIL Image to base64 string."""
-    buffered = BytesIO()
-    image.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode('utf-8')
+class OpenAIHelper:
+    """
+    Handles communication with the OpenAI API for image analysis.
+    """
 
-def get_completion(prompt, images=[], model="gpt-4o"):
-    """Make a request to OpenAI's API with optional image input."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    def __init__(self, model="gpt-4o"):
+        self.model = model
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        self.client = OpenAI(api_key=api_key)
 
-    client = OpenAI(api_key=api_key)  # Pass API key explicitly
-    
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt}
-            ]
-        }
-    ]
-    
-    # Add images to the message if provided
-    for img in images:
-        try:
-            base64_image = encode_image(img)
-            messages[0]["content"].append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/png;base64,{base64_image}"
-                }
-            })
-        except Exception as e:
-            print(f"Error encoding image: {e}")
+    def encode_image(self, image):
+        """Convert a PIL Image to base64 string."""
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=1000,
+    def analyse_bank_statements(self, images):
+        """
+        Analyze images of potential bank statements and extract structured data.
+        Returns JSON-formatted response with page analysis.
+        """
+        # System message content for the AI
+        system_content = (
+            "You are a data extraction AI. "
+            "Your task is to analyse each page image to see if it's a business bank statement or something else. "
+            "For each page: "
+            " 1) Determine 'classification' as 'bank_statement' or 'other'. "
+            " 2) If it's a bank_statement, extract as many of these fields as possible; if unknown, use 'unknown': "
+            "    - business_name "
+            "    - business_address "
+            "    - bank_name "
+            "    - opening_balance "
+            "    - closing_balance "
+            "    - transaction_count "
+            "    - page_text (the entire text you can read/infer from the page) "
+            "Produce an array of objects, one per page. "
+            "Use this JSON format exactly (no extra commentary): "
+            "{ "
+            "  \"pages\": [ "
+            "    { "
+            "      \"page_number\": 1, "
+            "      \"classification\": \"bank_statement\" or \"other\", "
+            "      \"business_name\": \"string or unknown\", "
+            "      \"business_address\": \"string or unknown\", "
+            "      \"bank_name\": \"string or unknown\", "
+            "      \"opening_balance\": \"float or unknown\", "
+            "      \"closing_balance\": \"float or unknown\", "
+            "      \"transaction_count\": \"int or unknown\", "
+            "      \"page_text\": \"string or unknown\" "
+            "    } "
+            "  ] "
+            "}. "
+            "Return valid JSON only. Do not include extra text."
         )
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"Error making OpenAI API request: {e}")
-        return None
 
-def get_pdf_metadata(pdf_path):
-    """Extract metadata from a PDF file."""
-    try:
-        reader = PdfReader(pdf_path)
-        metadata = reader.metadata or {}
-        
-        info = {
-            "Pages": len(reader.pages),
-            "Title": metadata.get("/Title", "Not available"),
-            "Author": metadata.get("/Author", "Not available"),
-            "Creator": metadata.get("/Creator", "Not available"),
-            "Producer": metadata.get("/Producer", "Not available"),
-            "Creation Date": metadata.get("/CreationDate", "Not available"),
-            "Modification Date": metadata.get("/ModDate", "Not available")
-        }
-        return info
-    except Exception as e:
-        print(f"Error extracting metadata: {e}")
-        return {}
+        # Prepare the messages for the AI
+        messages = [
+            {
+                "role": "system",
+                "content": system_content
+            },
+            {
+                "role": "user",
+                "content": []
+            }
+        ]
 
-def main():
-    # Load the .env file from your specified path
-    env_path = r"C:\Users\rokas\Documents\FinCheck\OpenAI.env"
-    load_dotenv(env_path)
+        # Add images to the user content
+        for img in images:
+            try:
+                base64_image = self.encode_image(img)
+                messages[1]["content"].append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{base64_image}"
+                    }
+                })
+            except Exception as e: #  Handle image encoding errors
+                print(f"Error encoding image: {e}")
+                continue
 
-    # Verify that the API key has loaded successfully
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("Error: OPENAI_API_KEY not found. Check your .env file location and content.")
-        sys.exit(1)
-    else:
-        print("API key loaded successfully from .env file.\n")
-
-    # Use a file picker (Tkinter) to select the PDF
-    root = tk.Tk()
-    root.withdraw()  # Hide the main tkinter window
-    pdf_file = filedialog.askopenfilename(
-        title="Select a PDF File",
-        filetypes=[("PDF Files", "*.pdf")]
-    )
-
-    # Handle 'no selection' scenario
-    if not pdf_file:
-        print("No file selected. Exiting.")
-        sys.exit(1)
-
-    pdf_path = Path(pdf_file)
-
-    # Check if the selected file exists
-    if not pdf_path.exists():
-        print(f"Error: File '{pdf_path}' does not exist")
-        sys.exit(1)
-
-    # Get and display PDF metadata
-    print("PDF Metadata:")
-    metadata = get_pdf_metadata(pdf_path)
-    for key, value in metadata.items():
-        print(f"{key}: {value}")
-
-    # Convert PDF to images
-    try:
-        images = pdf2image.convert_from_path(pdf_path)
-        print(f"\nFound {len(images)} pages in PDF.")
-    except Exception as e:
-        print(f"Error converting PDF to images: {e}")
-        sys.exit(1)
-
-    # Limit to first 20 pages
-    max_pages = 20
-    images = images[:max_pages] if len(images) > max_pages else images
-
-    # Generate analysis using OpenAI
-    prompt = "What do you see in these images? Please analyse each page in order, numbering your analysis for each page."
-    response = get_completion(prompt, images)
-    if response:
-        print("\nComplete PDF analysis:", response)
-
-if __name__ == "__main__":
-    main()
+        # Call the OpenAI API
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=2000,  # Increase if AI JSON response is too short
+                response_format={"type": "json_object"}  # Ensure JSON output
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Error calling OpenAI API: {e}")
+            return None
