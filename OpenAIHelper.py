@@ -35,15 +35,17 @@ class OpenAIHelper:
             "  - \"business_name\" : string or \"unknown\" "
             "  - \"business_address\" : string or \"unknown\" "
             "  - \"bank_name\" : string or \"unknown\" "
+
             "On ALL pages (including the first page), include: "
             "  - \"page_number\" : integer "
             "  - \"opening_balance\" : float or \"unknown\" "
             "  - \"closing_balance\" : float or \"unknown\" "
             "  - \"transaction_count\" : int or \"unknown\" "
             "  - \"transactions\" : an array of objects, each having "
-            "       { \"date\": \"YYYY-MM-DD or unknown\", \"amount\": \"+300\" or \"-200\" or \"unknown\" } "
+            "       { \"date\": \"YYYY-MM-DD\" or \"unknown\", \"amount\": \"+300\" or \"-200\" or \"unknown\" } "
             "    If no transactions are found, use \"unknown\". "
             "  - \"page_text\" : the entire text you can read or infer from that page "
+
             "Use the exact JSON format below (no extra commentary): "
             "{ "
             "  \"pages\": [ "
@@ -66,9 +68,21 @@ class OpenAIHelper:
             "    } "
             "  ] "
             "}. "
+
             "If a page is NOT the first page, do NOT output \"classification\", \"business_name\", \"business_address\", "
             "or \"bank_name\" for that page (leave them out entirely). "
-            "Return strictly valid JSON and nothing else."
+
+            "IMPORTANT ADDITIONAL INSTRUCTIONS: "
+            "1) Only extract transactions from the main continuous ledger that spans from 'opening_balance' to 'closing_balance'. "
+            "2) Headings like \"Checks Paid\" or \"Deposits & Other Credits\" may appear if they are truly part of the same ledger. "
+            "   Incorporate those lines if they clearly belong within the ledger's date/amount sequence, but skip them if they are "
+            "   obviously a separate summary or repeated partial lines. "
+            "3) Do not skip or exclude valid rows that appear in the main ledger table. If a row has a date and an amount in that table, "
+            "   include it unless it's a repeated summary line. "
+            "4) Never merge partial data from year-to-date summaries or repeated headings. "
+            "5) If unsure whether a line belongs to the main ledger or a summary, mark the transaction 'amount' as \"unknown\" rather "
+            "   than omitting it entirely. "
+            "6) Return strictly valid JSON and nothing else."
         )
 
         # Prepare the messages for the AI
@@ -102,7 +116,7 @@ class OpenAIHelper:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_tokens=10000,  # Increased for JSON output
+                max_tokens=16384,  # Increased for JSON output
                 response_format={"type": "json_object"}  # Ensure JSON output
             )
             return response.choices[0].message.content
