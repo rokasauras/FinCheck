@@ -101,7 +101,7 @@ class StatementClassifier:
         plt.title("Feature Importances")
         plt.xlabel("Relative Importance")
         plt.tight_layout()
-        plt.show()
+        #plt.show()
 
     def predict_label(self, feature_dict):
         """
