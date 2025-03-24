@@ -87,46 +87,35 @@ class StatementVerifier:
                 return {}
 
     
-    def compare_text(self, similarity_threshold=0.89): 
+    def compare_text(self, similarity_threshold=0.89):
         """
-        Compares the 'page_text' from AI vs. PDF output based on WORD similarity.
-        If similarity is below threshold, a unified diff is printed (word-by-word).
+        Compares AI vs PDF text and returns a list of similarity results per page.
         """
-        
-        print("\n=== Comparing AI Vision Output with PDF Extracted Text ===\n")
-
+        results = []
         total_pages = max(len(self.pages_ai["pages"]), len(self.pages_pdf["pages"]))
 
         for page_num in range(1, total_pages + 1):
             ai_page = next((p for p in self.pages_ai["pages"] if p.get("page_number") == page_num), {})
             pdf_page = next((p for p in self.pages_pdf["pages"] if p.get("page_number") == page_num), {})
 
-            ai_text = ai_page.get("page_text", "unknown")
-            pdf_text = pdf_page.get("page_text", "unknown")
+            ai_text = ai_page.get("page_text", "")
+            pdf_text = pdf_page.get("page_text", "")
 
-            # Preprocess and split texts into words for comparison
             ai_text_clean = preprocess_text(ai_text).split()
             pdf_text_clean = preprocess_text(pdf_text).split()
 
             matcher = difflib.SequenceMatcher(None, ai_text_clean, pdf_text_clean)
             similarity = matcher.ratio()
 
-            print(f"\n--- Page {page_num} ---")
-            print(f"Word-based Similarity Ratio: {similarity:.2f}")
+            result = {
+                "page": page_num,
+                "similarity": round(similarity * 100, 2),
+                "pass": similarity >= similarity_threshold
+            }
 
-            if similarity < similarity_threshold:
-                print("Differences detected. Unified Diff (word-based):")
-                diff = difflib.unified_diff(
-                    pdf_text_clean,
-                    ai_text_clean,
-                    fromfile="PDF Extracted Text",
-                    tofile="AI Vision Text",
-                    lineterm=""
-                )
-                for line in diff:
-                    return line
-            else:
-                print("Text similarity is acceptable.")
+            results.append(result)
+
+        return results
 
 
     @staticmethod # Static method to extract numbers from text
@@ -139,155 +128,128 @@ class StatementVerifier:
         matches = re.findall(pattern, text)
         return [match.lstrip('+-') for match in matches]
 
-    def compare_numbers(self):
+    def compare_text(self, similarity_threshold=0.89):
         """
-        Compare numeric values from AI output vs. PDF output for each page,
-        ignoring the order of the numbers. They must match in count and value,
-        but can appear in different sequences.
+        Compares AI vs PDF text and returns a list of similarity results per page.
+        Also prints the results for logging or real-time feedback.
         """
-        print("\n=== Comparing Numeric Values Between AI and PDF ===\n")
+        results = []
         total_pages = max(len(self.pages_ai["pages"]), len(self.pages_pdf["pages"]))
 
-        for page_num in range(1, total_pages + 1):  # Loop through all pages
-            # Find the page dictionaries
+        print("\n=== Text Comparison Results ===")
+
+        for page_num in range(1, total_pages + 1):
             ai_page = next((p for p in self.pages_ai["pages"] if p.get("page_number") == page_num), {})
             pdf_page = next((p for p in self.pages_pdf["pages"] if p.get("page_number") == page_num), {})
 
             ai_text = ai_page.get("page_text", "")
             pdf_text = pdf_page.get("page_text", "")
 
-            # Extract numbers
-            ai_numbers = self.extract_numbers(ai_text)
-            pdf_numbers = self.extract_numbers(pdf_text)
+            ai_text_clean = preprocess_text(ai_text).split()
+            pdf_text_clean = preprocess_text(pdf_text).split()
 
-            print(f"--- Page {page_num} ---")
-            print(f"AI Numbers: {ai_numbers}")
-            print(f"PDF Numbers: {pdf_numbers}")
+            matcher = difflib.SequenceMatcher(None, ai_text_clean, pdf_text_clean)
+            similarity = matcher.ratio()
 
-            # Quick length check
-            if len(ai_numbers) != len(pdf_numbers):
-                print("Number of numeric tokens does NOT match!\n")
-                continue
+            result = {
+                "page": page_num,
+                "similarity": round(similarity * 100, 2),
+                "pass": similarity >= similarity_threshold
+            }
+            results.append(result)
 
-            # Compare ignoring order using Counter
-            ai_counter = Counter(ai_numbers)
-            pdf_counter = Counter(pdf_numbers)
+            # ✅ Print for log or terminal
+            print(f"Page {page_num}: Similarity = {result['similarity']}% - {'✅ Pass' if result['pass'] else '❌ Fail'}")
 
-            # Calculate how many tokens match (by min frequency of each token)
-            common_count = 0
-            for token, count in ai_counter.items():
-                common_count += min(count, pdf_counter.get(token, 0))
-
-            # Compute match ratio (0 to 100%)
-            total_count = len(ai_numbers)  # or len(pdf_numbers); they're the same if lengths matched
-            if total_count > 0:
-                match_ratio = (common_count / total_count) * 100
-            else:
-                match_ratio = 100  # Edge case if no numbers at all
-
-            if ai_counter == pdf_counter:
-                print("All numeric values match!")
-            else:
-                print("Mismatched numeric values!")
-                print("Sorted AI:  ", sorted(ai_numbers))
-                print("Sorted PDF: ", sorted(pdf_numbers))
-
-            print(f"Numeric Match Ratio: {match_ratio:.2f}%\n")
-            print(f"Numberic_count_ai: {len(ai_numbers)}")
-            print(f"Numberic_count_pdf: {len(pdf_numbers)}")
-            print(f"Numberic_count_diff: {len(ai_numbers) - len(pdf_numbers)}")
+        return results
 
 
 
     def verify_opening_closing_balance_consistency(self, tolerance=0.01):
-
-        # Fetch the pages from AI data or self.pages_ai
         ai_data = getattr(self, 'ai_data', {})
         pages = ai_data.get("pages", []) if isinstance(ai_data, dict) else []
 
+        results = []
+
         if not pages:
+            results.append("No pages found. Skipping.")
             print("No pages found. Skipping.")
-            return
+            return results
 
-        print("\n=== Running Multi-Page Balance Consistency Check (using computed closings) ===")
+        results.append("=== Multi-Page Balance Consistency Check ===")
+        print("=== Multi-Page Balance Consistency Check ===")
 
-        # Keep track of rolling opening, computed from last page's final
         previous_closing = None
 
         for i, page_data in enumerate(pages):
             page_number = page_data.get("page_number", f"index{i}")
-            print(f"\n[Page {page_number}] Checking balances...")
+            results.append(f"--- Page {page_number} ---")
+            print(f"--- Page {page_number} ---")
 
-            # Extract the balances and transactions
             opening_raw = page_data.get("opening_balance", "unknown")
             closing_raw = page_data.get("closing_balance", "unknown")
             transactions = page_data.get("transactions", "unknown")
 
-            # Skip pages with missing or invalid data
             if transactions == "unknown" or not isinstance(transactions, list):
-                print(" - Missing or invalid transactions list. Skipping.")
+                msg = " - Invalid transactions list. Skipping."
+                results.append(msg)
+                print(msg)
                 continue
+
             if opening_raw == "unknown" and previous_closing is None:
-                print(f" - Page has no known opening_balance and there's no previous page's final to fill in. Skipping.")
+                msg = " - Missing opening balance and no previous closing to infer from. Skipping."
+                results.append(msg)
+                print(msg)
                 continue
 
-            # Convert or fill the opening balance
-            if opening_raw == "unknown" and previous_closing is not None:
-                ob_val = previous_closing
-                print(f"   Using last page's computed closing ({previous_closing}) as this page's opening.")
-            else:
-                try:
-                    ob_val = float(opening_raw)
-                except ValueError:
-                    print(f" - Non-numeric opening_balance '{opening_raw}'. Skipping page.")
-                    continue
+            try:
+                ob_val = float(opening_raw) if opening_raw != "unknown" else previous_closing
+            except ValueError:
+                msg = f" - Invalid opening balance '{opening_raw}'. Skipping."
+                results.append(msg)
+                print(msg)
+                continue
 
-            # Convert or skip the closing balance
             try:
                 stated_close = float(closing_raw)
             except ValueError:
                 stated_close = None
-                print(f"   Stated closing is non-numeric or unknown: '{closing_raw}'.")
+                msg = f" - Non-numeric closing: '{closing_raw}'."
+                results.append(msg)
+                print(msg)
 
-            #  Sum the transactions
             total_txn = 0.0
             for idx, tx in enumerate(transactions, start=1):
-                amount_str = tx.get("amount", "0")
                 try:
-                    parsed = float(amount_str)
-                    total_txn += parsed
+                    total_txn += float(tx.get("amount", "0"))
                 except ValueError:
-                    print(f"   Tx#{idx}: Invalid transaction amount '{amount_str}'. Using 0.")
+                    msg = f"   Tx#{idx}: Invalid amount '{tx.get('amount')}'."
+                    results.append(msg)
+                    print(msg)
 
-            #  Compute the final (expected_closing)
             expected_closing = ob_val + total_txn
+            diff = abs(expected_closing - stated_close) if stated_close is not None else None
 
-            #Check against stated closing (if available)
             msg_lines = [
-                f"   Opening:         {ob_val}",
-                f"   Transactions:    {total_txn}",
-                f"   Computed Final:  {expected_closing}",
+                f"   Opening: {ob_val}",
+                f"   Transactions Total: {total_txn}",
+                f"   Computed Closing: {expected_closing}",
             ]
-            if stated_close is not None:
-                diff = abs(expected_closing - stated_close)
-                msg_lines.append(f"   Stated Closing:  {stated_close}")
-                if diff <= tolerance:
-                    msg_lines.append(f"Matches stated closing (within ±{tolerance}).")
-                else:
-                    msg_lines.append(f"Mismatch! Difference: {diff}")
 
-            # Print the results
+            if stated_close is not None:
+                msg_lines.append(f"   Stated Closing: {stated_close}")
+                if diff <= tolerance:
+                    msg_lines.append(f"✅ Matches stated closing (±{tolerance})")
+                else:
+                    msg_lines.append(f"❌ Diff: {diff}")
+
             for line in msg_lines:
+                results.append(line)
                 print(line)
 
-            print(f"Balance_diff: {expected_closing - stated_close}")
-            print(f"Balance_mismatch: {abs(expected_closing - stated_close) > tolerance}")
-
-
-            # Update the previous_closing for the next iteration
             previous_closing = expected_closing
 
-        print("\n=== Finished Multi-Page Balance Check ===")
+        return results
 
 
 
