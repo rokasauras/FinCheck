@@ -138,17 +138,17 @@ class StatementVerifier:
         pattern = r'[+-]?\d+(?:\.\d+)?'
         matches = re.findall(pattern, text)
         return [match.lstrip('+-') for match in matches]
-    
-    def compare_numbers(self): # Compare numeric values between AI and PDF
+
+    def compare_numbers(self):
         """
-        Compare numeric values from AI output vs. PDF output for each page, 
+        Compare numeric values from AI output vs. PDF output for each page,
         ignoring the order of the numbers. They must match in count and value,
         but can appear in different sequences.
         """
         print("\n=== Comparing Numeric Values Between AI and PDF ===\n")
         total_pages = max(len(self.pages_ai["pages"]), len(self.pages_pdf["pages"]))
 
-        for page_num in range(1, total_pages + 1): # Loop through all pages
+        for page_num in range(1, total_pages + 1):  # Loop through all pages
             # Find the page dictionaries
             ai_page = next((p for p in self.pages_ai["pages"] if p.get("page_number") == page_num), {})
             pdf_page = next((p for p in self.pages_pdf["pages"] if p.get("page_number") == page_num), {})
@@ -170,14 +170,34 @@ class StatementVerifier:
                 continue
 
             # Compare ignoring order using Counter
-            if Counter(ai_numbers) == Counter(pdf_numbers):
+            ai_counter = Counter(ai_numbers)
+            pdf_counter = Counter(pdf_numbers)
+
+            # Calculate how many tokens match (by min frequency of each token)
+            common_count = 0
+            for token, count in ai_counter.items():
+                common_count += min(count, pdf_counter.get(token, 0))
+
+            # Compute match ratio (0 to 100%)
+            total_count = len(ai_numbers)  # or len(pdf_numbers); they're the same if lengths matched
+            if total_count > 0:
+                match_ratio = (common_count / total_count) * 100
+            else:
+                match_ratio = 100  # Edge case if no numbers at all
+
+            if ai_counter == pdf_counter:
                 print("All numeric values match!")
             else:
                 print("Mismatched numeric values!")
                 print("Sorted AI:  ", sorted(ai_numbers))
                 print("Sorted PDF: ", sorted(pdf_numbers))
 
-            print()  # Blank line for clarity
+            print(f"Numeric Match Ratio: {match_ratio:.2f}%\n")
+            print(f"Numberic_count_ai: {len(ai_numbers)}")
+            print(f"Numberic_count_pdf: {len(pdf_numbers)}")
+            print(f"Numberic_count_diff: {len(ai_numbers) - len(pdf_numbers)}")
+
+
 
     def verify_opening_closing_balance_consistency(self, tolerance=0.01):
 
@@ -259,6 +279,10 @@ class StatementVerifier:
             # Print the results
             for line in msg_lines:
                 print(line)
+
+            print(f"Balance_diff: {expected_closing - stated_close}")
+            print(f"Balance_mismatch: {abs(expected_closing - stated_close) > tolerance}")
+
 
             # Update the previous_closing for the next iteration
             previous_closing = expected_closing
