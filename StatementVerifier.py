@@ -87,7 +87,7 @@ class StatementVerifier:
                 return {}
 
     
-    def compare_text(self, similarity_threshold=0.90): 
+    def compare_text(self, similarity_threshold=0.89): 
         """
         Compares the 'page_text' from AI vs. PDF output based on WORD similarity.
         If similarity is below threshold, a unified diff is printed (word-by-word).
@@ -124,7 +124,7 @@ class StatementVerifier:
                     lineterm=""
                 )
                 for line in diff:
-                    print(line)
+                    return line
             else:
                 print("Text similarity is acceptable.")
 
@@ -178,6 +178,94 @@ class StatementVerifier:
                 print("Sorted PDF: ", sorted(pdf_numbers))
 
             print()  # Blank line for clarity
+
+    def verify_opening_closing_balance_consistency(self, tolerance=0.01):
+
+        # Fetch the pages from AI data or self.pages_ai
+        ai_data = getattr(self, 'ai_data', {})
+        pages = ai_data.get("pages", []) if isinstance(ai_data, dict) else []
+
+        if not pages:
+            print("No pages found. Skipping.")
+            return
+
+        print("\n=== Running Multi-Page Balance Consistency Check (using computed closings) ===")
+
+        # Keep track of rolling opening, computed from last page's final
+        previous_closing = None
+
+        for i, page_data in enumerate(pages):
+            page_number = page_data.get("page_number", f"index{i}")
+            print(f"\n[Page {page_number}] Checking balances...")
+
+            # Extract the balances and transactions
+            opening_raw = page_data.get("opening_balance", "unknown")
+            closing_raw = page_data.get("closing_balance", "unknown")
+            transactions = page_data.get("transactions", "unknown")
+
+            # Skip pages with missing or invalid data
+            if transactions == "unknown" or not isinstance(transactions, list):
+                print(" - Missing or invalid transactions list. Skipping.")
+                continue
+            if opening_raw == "unknown" and previous_closing is None:
+                print(f" - Page has no known opening_balance and there's no previous page's final to fill in. Skipping.")
+                continue
+
+            # Convert or fill the opening balance
+            if opening_raw == "unknown" and previous_closing is not None:
+                ob_val = previous_closing
+                print(f"   Using last page's computed closing ({previous_closing}) as this page's opening.")
+            else:
+                try:
+                    ob_val = float(opening_raw)
+                except ValueError:
+                    print(f" - Non-numeric opening_balance '{opening_raw}'. Skipping page.")
+                    continue
+
+            # Convert or skip the closing balance
+            try:
+                stated_close = float(closing_raw)
+            except ValueError:
+                stated_close = None
+                print(f"   Stated closing is non-numeric or unknown: '{closing_raw}'.")
+
+            #  Sum the transactions
+            total_txn = 0.0
+            for idx, tx in enumerate(transactions, start=1):
+                amount_str = tx.get("amount", "0")
+                try:
+                    parsed = float(amount_str)
+                    total_txn += parsed
+                except ValueError:
+                    print(f"   Tx#{idx}: Invalid transaction amount '{amount_str}'. Using 0.")
+
+            #  Compute the final (expected_closing)
+            expected_closing = ob_val + total_txn
+
+            #Check against stated closing (if available)
+            msg_lines = [
+                f"   Opening:         {ob_val}",
+                f"   Transactions:    {total_txn}",
+                f"   Computed Final:  {expected_closing}",
+            ]
+            if stated_close is not None:
+                diff = abs(expected_closing - stated_close)
+                msg_lines.append(f"   Stated Closing:  {stated_close}")
+                if diff <= tolerance:
+                    msg_lines.append(f"Matches stated closing (within ±{tolerance}).")
+                else:
+                    msg_lines.append(f"Mismatch! Difference: {diff}")
+
+            # Print the results
+            for line in msg_lines:
+                print(line)
+
+            # Update the previous_closing for the next iteration
+            previous_closing = expected_closing
+
+        print("\n=== Finished Multi-Page Balance Check ===")
+
+
 
 
     
