@@ -4,10 +4,33 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
 from dotenv import load_dotenv
+from io import StringIO
+from contextlib import redirect_stdout
 
 from OpenAIHelper import OpenAIHelper
 from PDFHandler import PDFHandler
 from StatementVerifier import StatementVerifier
+
+class Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, message):
+        for stream in self.streams:
+            try:
+                stream.write(message)
+            except ValueError:
+                # The file might be closed already, so ignore
+                pass
+    def flush(self):
+        for stream in self.streams:
+            try:
+                stream.flush()
+            except ValueError:
+                # The file might be closed, so ignore the flush
+                pass
+
+
 
 def main():
     # Load OpenAI API key from .env file
@@ -93,7 +116,24 @@ def main():
         print("No valid AI output available for statement verification.")
 
 if __name__ == "__main__":
-    main()
+    log_path = Path("output_logs/log.txt")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Open log file in a context manager
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        # Tee writes to both the real stdout (sys.__stdout__) and log_file
+        sys.stdout = Tee(sys.__stdout__, log_file)
+
+        try:
+            # Run main code
+            main()
+        finally:
+            # Restore original stdout
+            sys.stdout = sys.__stdout__
+
+    print(f"Logs have been written to {log_path}")
+    os.system("python SQLPreper.py")
+    os.system("python MachineLearning.py")
 
 
 
