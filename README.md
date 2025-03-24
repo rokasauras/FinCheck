@@ -31,9 +31,8 @@
         <li>sqlite3</li>
     </ul>
     <p>You may also require the installation of <code>poppler</code> for PDF image conversion:</p>
-    <ul>
-        <li><strong>Windows:</strong> Download from <a href="http://blog.alivate.com.au/poppler-windows/" target="_blank">here</a> and update paths accordingly.</li>
-    </ul>
+
+    
 
   <h3>3. Set Up Environment Variables</h3>
     <p>Create a <code>OpenAI.env</code> file in your project directory containing:</p>
