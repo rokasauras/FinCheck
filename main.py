@@ -53,7 +53,7 @@ def main():
 
     # Use OpenAI to analyse the bank statement
     USE_OPENAI = True  # Set to False if you don't want to use OpenAI
-    
+
     # Define gpt_response upfront so it's in scope even if AI call is skipped/fails
     gpt_response = None
 
@@ -66,17 +66,34 @@ def main():
                 print("\n--- OpenAI Image Analysis ---")
                 print(gpt_response)  # Print the raw JSON (or string) returned by OpenAI
             else:
-                print("No response from OpenAI.")
+                print("OpenAI returned an empty or null response.")
+
         except Exception as e:
             print(f"OpenAI Analysis Error: {e}")
-
-    # Compare AI output with PDF text data
-    if gpt_response:
-        verifier = StatementVerifier(ai_output=gpt_response, pdf_handler=pdf_handler)
-        verifier.compare_text()       # Compare textual similarity, e.g. difflib
-        verifier.compare_numbers()    # Compare numeric values with no tolerance
     else:
-        print("No valid AI response available for comparison.")
+        print("Skipping OpenAI Vision analysis (API key missing or USE_OPENAI=False).")
+
+    # Run the StatementVerifier
+    if gpt_response:
+        try:
+            verifier = StatementVerifier(ai_output=gpt_response, pdf_handler=pdf_handler)
+
+            # Compare AI and PDF text
+            verifier.compare_text()
+
+            # Compare numeric values with no tolerance
+            verifier.compare_numbers()
+
+            # Check opening/closing balance consistency
+            verifier.verify_opening_closing_balance_consistency()
+
+        except Exception as e:
+            print(f"Error running StatementVerifier: {e}")
+    else:
+        print("No valid AI output available for statement verification.")
 
 if __name__ == "__main__":
     main()
+
+
+
