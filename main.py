@@ -10,6 +10,10 @@ from contextlib import redirect_stdout
 from OpenAIHelper import OpenAIHelper
 from PDFHandler import PDFHandler
 from StatementVerifier import StatementVerifier
+from SQLPreper import SQLPreper
+
+
+load_dotenv(r"C:\Users\rokas\Documents\FinCheck\OpenAI.env")
 
 class Tee:
     def __init__(self, *streams):
@@ -109,6 +113,7 @@ def main():
 
             # Check opening/closing balance consistency
             verifier.verify_opening_closing_balance_consistency()
+
 
         except Exception as e:
             print(f"Error running StatementVerifier: {e}")
