@@ -1,0 +1,8 @@
+openai
+pdf2image
+PyPDF2
+python-dotenv
+streamlit
+matplotlib
+pandas
+scikit-learn
