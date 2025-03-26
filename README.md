@@ -11,7 +11,7 @@
   <h2>Getting Started</h2>
 
   <h3>1. Clone Repository</h3>
-    <pre><code>git clone &lt;https://github.com/rokasauras/FinCheck&gt;</code></pre>
+    <pre><code>git clone https://github.com/rokasauras/FinCheck</code></pre>
 
   <h3>2. Install Required Libraries</h3>
     <p>Ensure you have Python installed. Navigate to the project folder and install the required libraries:</p>
