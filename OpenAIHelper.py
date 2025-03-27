@@ -45,6 +45,7 @@ class OpenAIHelper:
             "       { \"date\": \"YYYY-MM-DD\" or \"unknown\", \"amount\": \"+300\" or \"-200\" or \"unknown\" } "
             "    If no transactions are found, use \"unknown\". "
             "  - \"page_text\" : the entire text you can read or infer from that page "
+            "  - \"Obvious Tampering\" : 0, 1, or \"unknown\" "
 
             "Use the exact JSON format below (no extra commentary): "
             "{ "
@@ -64,7 +65,8 @@ class OpenAIHelper:
             "            \"amount\": \"+300\" or \"-200\" or \"unknown\" "
             "          } "
             "       ] or \"unknown\", "
-            "      \"page_text\": \"string or unknown\" "
+            "      \"page_text\": \"string or unknown\", "
+            "      \"Obvious Tampering\": \"int or unknown\" "
             "    } "
             "  ] "
             "}. "
@@ -82,7 +84,10 @@ class OpenAIHelper:
             "4) Never merge partial data from year-to-date summaries or repeated headings. "
             "5) If unsure whether a line belongs to the main ledger or a summary, mark the transaction 'amount' as \"unknown\" rather "
             "   than omitting it entirely. "
-            "6) Return strictly valid JSON and nothing else."
+            "6) The \"Obvious Tampering\" field should be set to 1 if there are clear signs of tampering "
+            "   such as overwritten text, placeholders, suspicious text overlays, or repeated partial disclaimers. "
+            "   Set it to 0 if no such signs are visible, or \"unknown\" if uncertain. "
+            "7) Return strictly valid JSON and nothing else."
         )
 
         # Prepare the messages for the AI
