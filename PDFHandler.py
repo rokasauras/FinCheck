@@ -75,7 +75,7 @@ class PDFHandler:
             self.text_pages = []
 
     def convert_to_images(self, max_pages=20):
-        """Convert the PDF to images (for OCR or AI-based image analysis)."""
+        """Convert the PDF to images (AI-based image analysis)."""
         try:
             self.images = pdf2image.convert_from_path(
                 self.pdf_path, 
